@@ -10,12 +10,7 @@ const io = socketIo(server, {
     pingInterval: 5000,
     transports: ['websocket', 'polling'],
     upgradeTimeout: 10000,
-    maxHttpBufferSize: 1e8,
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    },
-    allowEIO3: true
+    maxHttpBufferSize: 1e8
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
