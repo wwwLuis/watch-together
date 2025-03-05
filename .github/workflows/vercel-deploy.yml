@@ -1,4 +1,4 @@
-name: Deploy to Vercel
+git name: Deploy to Vercel
 
 on:
   push:
