@@ -136,16 +136,37 @@ document.addEventListener('DOMContentLoaded', () => {
     
 
     function onPlayerStateChange(event) {
-        if (!room || !playerReady || isSyncing) return; // Only emit when not syncing
+        if (!room || !playerReady || isSyncing) return;
+        if (!canSendCommand()) return;
         
-        if (!canSendCommand()) return; // Prevent rapid fire commands
+        // Only emit for user-initiated state changes
+        if (event.data === YT.PlayerState.PLAYING && player.getCurrentTime() < 0.5) {
+            // Don't synchronize autoplay events at the start of videos
+            return;
+        }
         
-        if (event.data === YT.PlayerState.PLAYING) {
-            socket.emit('play', { room, time: player.getCurrentTime() });
-            updateStatus('Video wird abgespielt');
-        } else if (event.data === YT.PlayerState.PAUSED) {
-            socket.emit('pause', { room, time: player.getCurrentTime() });
-            updateStatus('Video pausiert');
+        // For all other states
+        if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
+            const action = event.data === YT.PlayerState.PLAYING ? 'play' : 'pause';
+            socket.emit(action, {
+                room: room,
+                time: player.getCurrentTime(),
+                videoId: player.getVideoData().video_id,
+                userInitiated: true
+            });
+        }
+
+        if (event.data === YT.PlayerState.BUFFERING && !isSyncing) {
+            // Show buffer state to user
+            showSyncStatus(true, "Buffering video...");
+            
+            // If buffering takes too long, request a resync
+            clearTimeout(bufferingTimeout);
+            bufferingTimeout = setTimeout(() => {
+                if (player.getPlayerState() === YT.PlayerState.BUFFERING) {
+                    socket.emit('request-video-state', {room});
+                }
+            }, 5000);
         }
     }
 
@@ -200,13 +221,25 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('play').addEventListener('click', () => {
         if (!room || !playerReady) return;
         if (!canSendCommand()) return; // Prevent rapid fire commands
-        player.playVideo();
+        
+        // Send play event to server first, don't play locally yet
+        socket.emit('play', {
+            room: room,
+            time: player.getCurrentTime(),
+            videoId: player.getVideoData().video_id
+        });
     });
 
     document.getElementById('pause').addEventListener('click', () => {
         if (!room || !playerReady) return;
         if (!canSendCommand()) return; // Prevent rapid fire commands
-        player.pauseVideo();
+        
+        // Send pause event to server first, don't pause locally yet
+        socket.emit('pause', {
+            room: room,
+            time: player.getCurrentTime(),
+            videoId: player.getVideoData().video_id
+        });
     });
 
     function extractVideoId(url) {
@@ -263,51 +296,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Replace fixed timeouts with adaptive ones
+    function getAdaptiveSyncDelay() {
+        // Base on network latency, with reasonable min/max limits
+        return Math.max(1000, Math.min(3000, networkLatency * 4));
+    }
+
     socket.on('play', (data) => {
-        // Ignore outdated commands (older sequence numbers)
-        if (data.seq && data.seq <= lastReceivedSequence) {
-            console.log(`Ignoring outdated play command (seq ${data.seq} <= ${lastReceivedSequence})`);
-            return;
-        }
+        if (!playerReady) return;
         
-        if (data.seq) lastReceivedSequence = data.seq;
+        console.log('Received play command:', data);
+        isSyncing = true;
+        showSyncStatus(true);
         
-        if (playerReady) {
-            isSyncing = true;
-            showSyncStatus(isSyncing);
-            // Adjust time based on elapsed time since server received command
-            const serverTimeElapsed = (Date.now() - data.serverTime);
-            const adjustedTime = data.time + (serverTimeElapsed / 1000);
-            player.seekTo(adjustedTime, true);
-            player.playVideo();
-            
-            // Dynamic timeout based on latency
-            setTimeout(() => { 
-                isSyncing = false; 
-                showSyncStatus(isSyncing);
-            }, Math.max(1000, networkLatency * 3));
-        }
+        // Account for network delay
+        const serverTimeElapsed = (Date.now() - data.serverTime) / 1000;
+        const adjustedTime = data.time + serverTimeElapsed;
+        
+        player.seekTo(adjustedTime, true);
+        player.playVideo();
+        
+        setTimeout(() => { 
+            isSyncing = false; 
+            showSyncStatus(false);
+        }, getAdaptiveSyncDelay());
     });
 
     socket.on('pause', (data) => {
-        // Ignore outdated commands
-        if (data.seq && data.seq <= lastReceivedSequence) {
-            console.log(`Ignoring outdated pause command (seq ${data.seq} <= ${lastReceivedSequence})`);
-            return;
-        }
+        if (!playerReady) return;
         
-        if (data.seq) lastReceivedSequence = data.seq;
-        
-        if (playerReady) {
-            isSyncing = true;
-            showSyncStatus(isSyncing);
-            player.seekTo(data.time, true);
-            player.pauseVideo();
-            setTimeout(() => { 
-                isSyncing = false; 
-                showSyncStatus(isSyncing);
-            }, 1000);
-        }
+        console.log('Received pause command:', data);
+        isSyncing = true;
+        player.seekTo(data.time, true);
+        player.pauseVideo();
+        setTimeout(() => { isSyncing = false; }, 1000);
     });
 
     socket.on('load-video', (data) => {
@@ -382,10 +404,14 @@ document.addEventListener('DOMContentLoaded', () => {
         updateStatus('Connection lost. Attempting to reconnect...', true);
     });
 
+    // In scripts.js - merge the two connect event handlers
     socket.on('connect', () => {
+        console.log('Socket connected successfully', socket.id);
+        updateStatus('Connected to server');
+        
         if (room) {
             updateStatus('Reconnected! Rejoining room...');
-            socket.emit('join-room', room);
+            socket.emit('join-room', { room, password: document.getElementById('room-password')?.value || '' });
             socket.emit('request-video-state', {room});
         }
     });
@@ -408,16 +434,19 @@ document.addEventListener('DOMContentLoaded', () => {
         player.seekTo(seekTime, true);
     });
 
+    // Preserve video state when seeking
     document.getElementById('seek-slider').addEventListener('change', (e) => {
         if (!playerReady || !player.getDuration() || !room) return;
+        
         const seekTime = (player.getDuration() * e.target.value) / 100;
-        socket.emit('play', { room, time: seekTime });
-    });
-
-    // Add connection status handlers
-    socket.on('connect', () => {
-        console.log('Socket connected successfully', socket.id);
-        updateStatus('Connected to server');
+        const currentState = player.getPlayerState();
+        
+        // Use different commands based on current state
+        if (currentState === YT.PlayerState.PLAYING || currentState === YT.PlayerState.BUFFERING) {
+            socket.emit('play', { room, time: seekTime, videoId: player.getVideoData().video_id });
+        } else {
+            socket.emit('pause', { room, time: seekTime, videoId: player.getVideoData().video_id });
+        }
     });
 
     socket.on('connect_error', (error) => {

@@ -298,6 +298,15 @@ io.on('connection', (socket) => {
             console.log(`No video state found for room ${data.room}`);
         }
     });
+
+    // Replace custom ping implementation
+    function updateLatency() {
+        // Socket.IO has built-in latency measurement
+        if (socket.io && socket.io.engine) {
+            networkLatency = socket.io.engine.ping || 0;
+            console.log(`Network latency from Socket.IO: ${networkLatency}ms`);
+        }
+    }
 });
 
 const PORT = process.env.PORT || 3000;
