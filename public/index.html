@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncWatch</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">SyncWatch</h1>
+        <div id="room-selection" class="text-center">
+            <input type="text" id="room-name" class="form-control mb-2" placeholder="Raumname">
+            <input type="password" id="room-password" class="form-control mb-2" placeholder="Passwort (optional)">
+            <button id="create-room" class="btn btn-primary mr-2">Raum erstellen</button>
+            <button id="join-room" class="btn btn-secondary">Raum beitreten</button>
+        </div>
+        <div id="video-container" style="display: none;" class="text-center mt-4">
+            <div id="room-info" class="mb-2 font-weight-bold"></div>
+            <div class="embed-responsive embed-responsive-16by9 mb-3">
+                <iframe id="youtube-player" 
+                        type="text/html"
+                        class="embed-responsive-item" 
+                        src="https://www.youtube.com/embed/?enablejsapi=1&controls=0" 
+                        allowfullscreen>
+                </iframe>
+            </div>
+            <div id="timestamp" class="mb-2">0:00 / 0:00</div>
+            <div id="controls" class="mb-3">
+                <button id="play" class="btn btn-success mr-2">Play</button>
+                <button id="pause" class="btn btn-danger mr-2">Pause</button>
+                <input type="range" id="seek-slider" min="0" max="100" value="0" class="w-50 mr-2">
+                <input type="text" id="video-url" class="form-control d-inline-block w-50 mr-2" placeholder="YouTube Video URL">
+                <button id="load-video" class="btn btn-info">Video laden</button>
+            </div>
+            <div id="status" class="mb-2"></div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="scripts.js"></script>
+</body>
+</html>
