@@ -1,5 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
-    let socket = io();
+    let socket = io({
+        transports: ['websocket', 'polling'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        forceNew: true
+    });
     let player;
     let room;
     let playerReady = false;
@@ -28,6 +33,23 @@ document.addEventListener('DOMContentLoaded', () => {
         statusElement.className = isError ? 'text-danger' : 'text-success';
         setTimeout(() => { statusElement.textContent = ''; }, 3000);
     }
+
+    // Add after your existing updateStatus function:
+    function debugSocketStatus() {
+        const statusArea = document.getElementById('status');
+        const debugInfo = document.createElement('div');
+        debugInfo.innerHTML = `
+            <small>
+            Socket ID: ${socket.id || 'Not connected'}<br>
+            Connected: ${socket.connected ? 'Yes' : 'No'}<br>
+            Transport: ${socket.io?.engine?.transport?.name || 'None'}
+            </small>
+        `;
+        statusArea.appendChild(debugInfo);
+    }
+
+    // Call this on page load
+    setTimeout(debugSocketStatus, 2000);
 
     // Add to scripts.js functions
     function showSyncStatus(isSyncing) {
@@ -390,5 +412,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!playerReady || !player.getDuration() || !room) return;
         const seekTime = (player.getDuration() * e.target.value) / 100;
         socket.emit('play', { room, time: seekTime });
+    });
+
+    // Add connection status handlers
+    socket.on('connect', () => {
+        console.log('Socket connected successfully', socket.id);
+        updateStatus('Connected to server');
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        updateStatus('Connection error: ' + error.message, true);
     });
 });

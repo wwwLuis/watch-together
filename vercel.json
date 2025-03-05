@@ -5,9 +5,15 @@
     { "src": "public/**", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "server.js" },
     { "src": "/socket.io/(.*)", "dest": "server.js" },
+    { "src": "/api/(.*)", "dest": "server.js" },
     { "src": "/(.*\\.(js|css|html|png|jpg|jpeg|svg|ico))", "dest": "/public/$1" },
     { "src": "/(.*)", "dest": "server.js" }
-  ]
+  ],
+  "functions": {
+    "server.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 }
