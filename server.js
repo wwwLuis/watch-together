@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -9,10 +10,20 @@ const io = socketIo(server, {
     pingInterval: 5000,
     transports: ['websocket', 'polling'],
     upgradeTimeout: 10000,
-    // Lower the below value for better responsiveness at the cost of more bandwidth
-    maxHttpBufferSize: 1e8
+    maxHttpBufferSize: 1e8,
+    // Add these for Vercel:
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    allowEIO3: true
 });
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Ensure you have a route handler for the root path
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Track rooms, users and passwords
 const rooms = new Map(); // Enhance to track video state
