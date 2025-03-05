@@ -110,9 +110,17 @@ io.on('connection', (socket) => {
         
         const userCount = getRoomUserCount(roomName);
         
+        // Send regular user count update
         io.to(roomName).emit('user-count-update', { 
             room: roomName, 
             count: userCount 
+        });
+        
+        // Emit specific user-joined event to all clients in the room EXCEPT the joining user
+        socket.to(roomName).emit('user-joined', {
+            room: roomName,
+            userId: socket.id,
+            count: userCount
         });
         
         socket.emit('room-joined', { 

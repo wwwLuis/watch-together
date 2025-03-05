@@ -5,19 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncWatch</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container mt-5">
         <h1 class="text-center mb-4">SyncWatch</h1>
         <div id="room-selection" class="text-center">
-            <input type="text" id="room-name" class="form-control mb-2" placeholder="Raumname">
-            <input type="password" id="room-password" class="form-control mb-2" placeholder="Passwort (optional)">
-            <button id="create-room" class="btn btn-primary mr-2">Raum erstellen</button>
-            <button id="join-room" class="btn btn-secondary">Raum beitreten</button>
+            <div class="form-group">
+                <input type="text" id="room-name" class="form-control" placeholder="Raumname eingeben">
+            </div>
+            <div class="form-group">
+                <input type="password" id="room-password" class="form-control" placeholder="Passwort (optional)">
+            </div>
+            <div class="btn-group">
+                <button id="create-room" class="btn btn-primary">
+                    <i class="fas fa-plus-circle"></i> Raum erstellen
+                </button>
+                <button id="join-room" class="btn btn-secondary">
+                    <i class="fas fa-sign-in-alt"></i> Raum beitreten
+                </button>
+            </div>
         </div>
+        
         <div id="video-container" style="display: none;" class="text-center mt-4">
-            <div id="room-info" class="mb-2 font-weight-bold"></div>
+            <div id="room-info" class="mb-3">
+                <i class="fas fa-users"></i> <span id="room-name-display"></span>
+            </div>
+            
             <div class="embed-responsive embed-responsive-16by9 mb-3">
                 <iframe id="youtube-player" 
                         type="text/html"
@@ -26,17 +42,30 @@
                         allowfullscreen>
                 </iframe>
             </div>
-            <div id="timestamp" class="mb-2">0:00 / 0:00</div>
-            <div id="controls" class="mb-3">
-                <button id="play" class="btn btn-success mr-2">Play</button>
-                <button id="pause" class="btn btn-danger mr-2">Pause</button>
-                <input type="range" id="seek-slider" min="0" max="100" value="0" class="w-50 mr-2">
-                <input type="text" id="video-url" class="form-control d-inline-block w-50 mr-2" placeholder="YouTube Video URL">
-                <button id="load-video" class="btn btn-info">Video laden</button>
+            
+            <input type="range" id="seek-slider" min="0" max="100" value="0" class="w-100">
+            <div id="timestamp" class="mb-3">0:00 / 0:00</div>
+            
+            <div class="btn-group mb-3">
+                <button id="play" class="btn btn-success">
+                    <i class="fas fa-play"></i> Play
+                </button>
+                <button id="pause" class="btn btn-danger">
+                    <i class="fas fa-pause"></i> Pause
+                </button>
             </div>
-            <div id="status" class="mb-2"></div>
+            
+            <div class="url-input-group mb-3">
+                <input type="text" id="video-url" class="form-control" placeholder="YouTube Video URL eingeben">
+                <button id="load-video" class="btn btn-info">
+                    <i class="fas fa-download"></i> Video laden
+                </button>
+            </div>
+            
+            <div id="status" class="alert alert-info" style="display: none;"></div>
         </div>
     </div>
+    
     <script src="/socket.io/socket.io.js"></script>
     <script src="scripts.js"></script>
 </body>

@@ -422,4 +422,17 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('connect_error', (error) => {
         updateStatus('Connection error: ' + error.message, true);
     });
+
+    // User joined handler
+    socket.on('user-joined', function(data) {
+        if (data.room === room) {
+            const roomInfo = document.getElementById('room-info');
+            roomInfo.classList.add('user-joined');
+            updateStatus(`A new user has joined the room`, false);
+            
+            setTimeout(() => {
+                roomInfo.classList.remove('user-joined');
+            }, 2000);
+        }
+    });
 });
