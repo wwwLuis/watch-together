@@ -20,6 +20,7 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint for monitoring
+// Used to check if the server runs(used by host: render.com)
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: Date.now() });
 });

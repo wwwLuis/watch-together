@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let usersInRoom = 0;
     let networkLatency = 0;
     let bufferingTimeout;
+    // Add last sequence number tracking
+    let lastReceivedCommandSeq = 0;
 
     // Command debouncing
     let lastCommandTime = 0;
@@ -128,7 +130,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Handle YouTube player state changes
     function onPlayerStateChange(event) {
-        if (!room || !playerReady || isSyncing) return;
+        // Prevent sending events if we're in the process of syncing
+        if (!room || !playerReady) return;
+        if (isSyncing) {
+            console.log("Skipping event during sync:", event.data);
+            return;
+        }
         if (!canSendCommand()) return;
         
         // Skip autoplay events
@@ -138,10 +145,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (event.data === YT.PlayerState.PLAYING || event.data === YT.PlayerState.PAUSED) {
             const action = event.data === YT.PlayerState.PLAYING ? 'play' : 'pause';
+            const currentTime = player.getCurrentTime();
+            const videoId = player.getVideoData().video_id;
+            
+            console.log(`Sending ${action} at ${currentTime} for ${videoId}, user initiated`);
+            
             socket.emit(action, {
                 room: room,
-                time: player.getCurrentTime(),
-                videoId: player.getVideoData().video_id,
+                time: currentTime,
+                videoId: videoId,
                 userInitiated: true
             });
         }
@@ -155,6 +167,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     socket.emit('request-video-state', {room});
                 }
             }, 5000);
+        } else if (event.data !== YT.PlayerState.BUFFERING) {
+            // Clear buffering status when we're no longer buffering
+            const indicator = document.getElementById('sync-indicator');
+            if (indicator && indicator.textContent === "Buffering video...") {
+                showSyncStatus(false);
+            }
         }
     }
 
@@ -206,22 +224,36 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('play').addEventListener('click', () => {
         if (!room || !playerReady || !canSendCommand()) return;
         
+        // Set local state immediately to provide responsive feedback
+        isSyncing = true;
+        player.playVideo();
+        
         socket.emit('play', {
             room: room,
             time: player.getCurrentTime(),
             videoId: player.getVideoData().video_id
         });
+        
+        // Release the sync lock after a small delay to prevent local events
+        setTimeout(() => { isSyncing = false; }, 500);
     });
 
     // Pause button handler
     document.getElementById('pause').addEventListener('click', () => {
         if (!room || !playerReady || !canSendCommand()) return;
+
+        // Set local state immediately to provide responsive feedback
+        isSyncing = true;
+        player.pauseVideo();
         
         socket.emit('pause', {
             room: room,
             time: player.getCurrentTime(),
             videoId: player.getVideoData().video_id
         });
+        
+        // Release the sync lock after a small delay to prevent local events
+        setTimeout(() => { isSyncing = false; }, 500);
     });
 
     // Extract YouTube video ID from URL
@@ -284,11 +316,22 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('play', (data) => {
         if (!playerReady) return;
         
+        // Check for out-of-order commands using sequence numbers
+        if (data.seq && data.seq <= lastReceivedCommandSeq) {
+            console.log(`Ignoring out-of-sequence play command: ${data.seq} <= ${lastReceivedCommandSeq}`);
+            return;
+        }
+        if (data.seq) {
+            lastReceivedCommandSeq = data.seq;
+        }
+        
         isSyncing = true;
         showSyncStatus(true);
         
         const serverTimeElapsed = (Date.now() - data.serverTime) / 1000;
         const adjustedTime = data.time + serverTimeElapsed;
+        
+        console.log(`Received play command: time=${data.time}, adjusted=${adjustedTime}, from server=${data.serverTime}`);
         
         player.seekTo(adjustedTime, true);
         player.playVideo();
@@ -303,10 +346,26 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('pause', (data) => {
         if (!playerReady) return;
         
+        // Check for out-of-order commands using sequence numbers
+        if (data.seq && data.seq <= lastReceivedCommandSeq) {
+            console.log(`Ignoring out-of-sequence pause command: ${data.seq} <= ${lastReceivedCommandSeq}`);
+            return;
+        }
+        if (data.seq) {
+            lastReceivedCommandSeq = data.seq;
+        }
+        
         isSyncing = true;
+        showSyncStatus(true);
+        console.log(`Received pause command: time=${data.time}, from server=${data.serverTime}`);
+        
         player.seekTo(data.time, true);
         player.pauseVideo();
-        setTimeout(() => { isSyncing = false; }, 1000);
+        
+        setTimeout(() => { 
+            isSyncing = false;
+            showSyncStatus(false);
+        }, 1000);
     });
 
     // Load video handler
@@ -340,6 +399,15 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.on('video-state-update', (state) => {
         if (!playerReady) return;
         
+        // Check for sequence number if it's included
+        if (state.seq && state.seq <= lastReceivedCommandSeq) {
+            console.log(`Ignoring out-of-sequence state update: ${state.seq} <= ${lastReceivedCommandSeq}`);
+            return;
+        }
+        if (state.seq) {
+            lastReceivedCommandSeq = state.seq;
+        }
+        
         isSyncing = true;
         showSyncStatus(true);
         
@@ -351,6 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const currentTime = state.action === 'play' 
                     ? state.clientTime + (elapsedSecs * (state.rate || 1))
                     : state.clientTime;
+                
+                console.log(`State update: action=${state.action}, time=${state.clientTime}, adjusted=${currentTime}`);
                 
                 player.seekTo(currentTime, true);
                 
@@ -386,13 +456,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Periodic sync check
+    // Periodic sync check with improved logic
     function checkSyncStatus() {
         if (room && playerReady && !isSyncing && player.getPlayerState() === YT.PlayerState.PLAYING) {
+            // Get the current video state
+            const currentTime = player.getCurrentTime();
+            const playerState = player.getPlayerState();
+            
+            // Only check sync if we're actually playing
             socket.emit('sync-check', {
                 room: room,
-                time: player.getCurrentTime(),
-                state: player.getPlayerState(),
+                time: currentTime,
+                state: playerState,
                 latency: networkLatency
             });
         }
@@ -412,11 +487,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const seekTime = (player.getDuration() * e.target.value) / 100;
         const currentState = player.getPlayerState();
         
+        // Set syncing flag to prevent local state change event from being broadcast
+        isSyncing = true;
+        
         if (currentState === YT.PlayerState.PLAYING || currentState === YT.PlayerState.BUFFERING) {
             socket.emit('play', { room, time: seekTime, videoId: player.getVideoData().video_id });
         } else {
             socket.emit('pause', { room, time: seekTime, videoId: player.getVideoData().video_id });
         }
+        
+        // Release sync lock after a short delay
+        setTimeout(() => { isSyncing = false; }, 500);
     });
 
     socket.on('connect_error', (error) => {
