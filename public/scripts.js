@@ -148,7 +148,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentTime = player.getCurrentTime();
             const videoId = player.getVideoData().video_id;
             
-            console.log(`Sending ${action} at ${currentTime} for ${videoId}, user initiated`);
+            console.log(`Sending ${action} at ${currentTime} for ${videoId}, player interaction`);
+            
+            // Mark as syncing temporarily to avoid double events
+            isSyncing = true;
             
             socket.emit(action, {
                 room: room,
@@ -156,6 +159,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoId: videoId,
                 userInitiated: true
             });
+            
+            // Short delay before allowing more state change events
+            setTimeout(() => { isSyncing = false; }, 500);
         }
 
         if (event.data === YT.PlayerState.BUFFERING && !isSyncing) {
@@ -224,36 +230,18 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('play').addEventListener('click', () => {
         if (!room || !playerReady || !canSendCommand()) return;
         
-        // Set local state immediately to provide responsive feedback
-        isSyncing = true;
+        // Directly control the player, which will trigger onPlayerStateChange
+        // that will handle the synchronization
         player.playVideo();
-        
-        socket.emit('play', {
-            room: room,
-            time: player.getCurrentTime(),
-            videoId: player.getVideoData().video_id
-        });
-        
-        // Release the sync lock after a small delay to prevent local events
-        setTimeout(() => { isSyncing = false; }, 500);
     });
 
     // Pause button handler
     document.getElementById('pause').addEventListener('click', () => {
         if (!room || !playerReady || !canSendCommand()) return;
 
-        // Set local state immediately to provide responsive feedback
-        isSyncing = true;
+        // Directly control the player, which will trigger onPlayerStateChange
+        // that will handle the synchronization
         player.pauseVideo();
-        
-        socket.emit('pause', {
-            room: room,
-            time: player.getCurrentTime(),
-            videoId: player.getVideoData().video_id
-        });
-        
-        // Release the sync lock after a small delay to prevent local events
-        setTimeout(() => { isSyncing = false; }, 500);
     });
 
     // Extract YouTube video ID from URL
