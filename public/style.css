@@ -299,14 +299,14 @@ button i {
   margin-bottom: 0;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
-  height: 50px; /* Set explicit height */
+  height: 50px; 
 }
 
 .url-input-group button {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   padding: 0 24px;
-  height: 50px; /* Match height of input */
+  height: 50px; 
   white-space: nowrap;
 }
 
@@ -342,7 +342,7 @@ button i {
   .url-input-group button {
     width: 100%;
     border-radius: var(--radius-sm);
-    height: auto; /* Reset height for mobile */
+    height: auto;
     margin-bottom: 10px;
   }
 }

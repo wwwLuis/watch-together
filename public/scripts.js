@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (now - lastCommandTime < COMMAND_DEBOUNCE_MS) {
             return false;
         }
-        // lastCommandTime is now updated by the caller
         return true;
     }
 
@@ -151,22 +150,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log(`onPlayerStateChange: Player state changed to ${action} via iframe. Emitting event.`);
             
-            // This interaction is causing a command to be sent, so update lastCommandTime.
-            // This ensures button debouncing respects this iframe-initiated command.
             lastCommandTime = Date.now(); 
             
             socket.emit(action, {
                 room: room,
                 time: currentTime,
                 videoId: videoId,
-                userInitiated: true // Indicates this was a direct user interaction with the player
+                userInitiated: true
             });
-            
-            // DO NOT set isSyncing = true here for iframe events, as it caused the original issue.
-            // The global isSyncing flag (set by buttons/server commands) handles echoes.
         }
 
-        if (event.data === YT.PlayerState.BUFFERING && !isSyncing) { // !isSyncing check is important
+        if (event.data === YT.PlayerState.BUFFERING && !isSyncing) {
             showSyncStatus(true, "Buffering video...");
             
             clearTimeout(bufferingTimeout);
@@ -234,9 +228,9 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Play button: Debounced");
             return;
         }
-        lastCommandTime = Date.now(); // Update lastCommandTime as we are sending a command
+        lastCommandTime = Date.now();
         
-        isSyncing = true; // Prevent onPlayerStateChange from firing an event due to player.playVideo()
+        isSyncing = true;
         const currentTime = player.getCurrentTime();
         const videoId = player.getVideoData().video_id;
         
@@ -247,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoId: videoId,
             userInitiated: true 
         });
-        player.playVideo(); // Now change the player state
+        player.playVideo();
         
         setTimeout(() => { isSyncing = false; }, 500); 
     });
@@ -259,9 +253,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Pause button: Debounced");
             return;
         }
-        lastCommandTime = Date.now(); // Update lastCommandTime as we are sending a command
+        // Sending command =>
+        lastCommandTime = Date.now();
 
-        isSyncing = true; // Prevent onPlayerStateChange from firing an event due to player.pauseVideo()
+        isSyncing = true;
         const currentTime = player.getCurrentTime();
         const videoId = player.getVideoData().video_id;
 
@@ -272,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoId: videoId,
             userInitiated: true
         });
-        player.pauseVideo(); // Now change the player state
+        player.pauseVideo();
         
         setTimeout(() => { isSyncing = false; }, 500);
     });
@@ -508,7 +503,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const seekTime = (player.getDuration() * e.target.value) / 100;
         const currentState = player.getPlayerState();
         
-        // Set syncing flag to prevent local state change event from being broadcast
         isSyncing = true;
         
         if (currentState === YT.PlayerState.PLAYING || currentState === YT.PlayerState.BUFFERING) {

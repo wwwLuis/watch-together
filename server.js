@@ -117,7 +117,7 @@ io.on('connection', (socket) => {
             count: userCount 
         });
         
-        // Emit specific user-joined event to all clients in the room EXCEPT the joining user
+        // Emit specific user-joined event to all clients in the room except the joining user
         socket.to(roomName).emit('user-joined', {
             room: roomName,
             userId: socket.id,
@@ -170,7 +170,7 @@ io.on('connection', (socket) => {
 
     // Play video for everyone in the room
     socket.on('play', (data) => {
-        // Implement command debouncing
+
         const currentSeq = roomCommandSequence.get(data.room) || 0;
         const nextSeq = currentSeq + 1;
         roomCommandSequence.set(data.room, nextSeq);
